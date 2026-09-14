@@ -1,0 +1,130 @@
+name: Terraform
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.8"
+  # Sem cor e sem input: o log do Actions nao e um terminal interativo.
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+# Duas execucoes simultaneas disputariam o lock do DynamoDB e uma falharia.
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Formato e validacao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Checar formatacao
+        run: terraform fmt -check -recursive -diff
+
+      # Sem backend: validacao de sintaxe nao precisa de credencial nem de state,
+      # entao roda mesmo que as credenciais do Academy tenham expirado.
+      - name: Validar configuracao
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  plan:
+    name: Plano
+    needs: validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Init
+        run: terraform init -lock-timeout=5m
+
+      - name: Plan
+        id: plan
+        run: |
+          terraform plan -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+          echo "resumo=$(grep -E '^(Plan:|No changes)' plan.txt | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Comentar o plano no PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plano = fs.readFileSync('plan.txt', 'utf8');
+            const limite = 60000; // o corpo de um comentario tem teto de 65536
+            if (plano.length > limite) {
+              plano = plano.slice(0, limite) + '\n\n... saida truncada, ver o log completo do job.';
+            }
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### Terraform plan — \`infra-k8s\`\n\n**${{ steps.plan.outputs.resumo }}**\n\n<details><summary>Plano completo</summary>\n\n\`\`\`terraform\n${plano}\n\`\`\`\n\n</details>`
+            });
+
+  apply:
+    name: Aplicar
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Configure protecao com revisor obrigatorio neste Environment para exigir
+    # aprovacao humana antes de qualquer mudanca em producao.
+    environment: producao
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Init
+        run: terraform init -lock-timeout=5m
+
+      - name: Apply
+        run: terraform apply -auto-approve -lock-timeout=5m
+
+      - name: Publicar outputs no resumo do job
+        run: |
+          {
+            echo "### Outputs"
+            echo ""
+            echo '| Output | Valor |'
+            echo '|---|---|'
+            terraform output -json | jq -r 'to_entries[] | "| \(.key) | `\(.value.value)` |"'
+          } >> "$GITHUB_STEP_SUMMARY"

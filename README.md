@@ -84,6 +84,32 @@ O ambiente bloqueia `iam:CreateRole`, `iam:GetRole` e `iam:CreateOpenIDConnectPr
 o cluster e o node group reutilizam a `LabRole` pré-existente (`create_iam_role = false`), e IRSA,
 KMS e criptografia do cluster ficam desligados.
 
+## CI/CD
+
+Workflow em `.github/workflows/terraform.yml`:
+
+| Evento | O que roda |
+|---|---|
+| Pull request | `fmt -check`, `validate`, `plan` — o plano é comentado no próprio PR |
+| Push em `main` | `apply` |
+| Manual (`workflow_dispatch`) | `apply` |
+
+O job de validação roda **sem backend**, então não precisa de credencial: um PR continua sendo
+verificado mesmo com as credenciais do AWS Academy expiradas.
+
+O `apply` está atrelado ao Environment `producao`. Configure nele um revisor obrigatório
+(Settings → Environments) para exigir aprovação humana antes de qualquer mudança.
+
+### Secrets necessários
+
+| Secret | Origem |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | painel do AWS Academy |
+| `AWS_SECRET_ACCESS_KEY` | painel do AWS Academy |
+| `AWS_SESSION_TOKEN` | painel do AWS Academy — credenciais temporárias, expiram em poucas horas |
+
+Um `concurrency group` impede duas execuções simultâneas, que disputariam o lock do DynamoDB.
+
 ## Custo
 
 EKS (~US$0,10/hora de control plane), instâncias EC2 dos nodes, NAT gateway e ECR geram custo
