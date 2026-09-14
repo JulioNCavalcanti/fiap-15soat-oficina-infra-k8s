@@ -1,0 +1,6 @@
+# Terraform — estado local, cache de providers e variaveis
+# (.terraform.lock.hcl NAO entra aqui: deve ser commitado para builds reprodutiveis)
+.terraform/
+terraform.tfvars
+terraform.tfstate*
+crash.log

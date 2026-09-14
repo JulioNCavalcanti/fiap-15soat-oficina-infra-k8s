@@ -1,0 +1,6 @@
+# Copie para terraform.tfvars (gitignorado) e ajuste se necessario.
+# Todos os valores tem default; este arquivo existe para deixar explicito o que
+# pode ser mudado.
+
+aws_region   = "us-east-1"
+project_name = "oficina"
