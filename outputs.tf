@@ -1,10 +1,10 @@
 output "eks_cluster_name" {
   description = "Nome do cluster EKS — usar em `aws eks update-kubeconfig --name <valor>`"
-  value       = module.eks.cluster_name
+  value       = aws_eks_cluster.this.name
 }
 
 output "eks_cluster_endpoint" {
-  value = module.eks.cluster_endpoint
+  value = aws_eks_cluster.this.endpoint
 }
 
 output "ecr_repository_url" {
@@ -14,7 +14,7 @@ output "ecr_repository_url" {
 
 output "configure_kubectl_command" {
   description = "Comando para configurar o kubectl local apontando para o cluster criado"
-  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
+  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.this.name}"
 }
 
 # Outputs de rede: publicados para inspecao humana e para eventual uso futuro.

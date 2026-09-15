@@ -40,7 +40,7 @@ O banco de dados **não** está aqui — fica em `fiap-15soat-oficina-infra-db`.
 ## Tecnologias
 
 - Terraform >= 1.5, provider AWS ~> 5.60
-- Módulos oficiais `terraform-aws-modules/vpc` e `terraform-aws-modules/eks`
+- Módulo oficial `terraform-aws-modules/vpc`; EKS com recursos nativos do provider (ver AWS Academy abaixo)
 - Backend de state em S3 com lock em DynamoDB
 
 ## Pré-requisitos
@@ -81,8 +81,13 @@ Os dois repositórios são independentes: o de banco usa data source, não lê e
 ## Observações sobre o AWS Academy
 
 O ambiente bloqueia `iam:CreateRole`, `iam:GetRole` e `iam:CreateOpenIDConnectProvider`. Por isso
-o cluster e o node group reutilizam a `LabRole` pré-existente (`create_iam_role = false`), e IRSA,
-KMS e criptografia do cluster ficam desligados.
+o cluster e o node group reutilizam a `LabRole` pré-existente, com o ARN montado a partir da conta
+corrente (`aws_caller_identity`) — cada sessão do Academy pode cair em uma conta diferente.
+
+O EKS usa `aws_eks_cluster`/`aws_eks_node_group`/`aws_eks_addon` direto, sem o módulo
+`terraform-aws-modules/eks`: o módulo sempre lê `aws_iam_session_context`, que chama `iam:GetRole`
+e não pode ser desligado. O acesso de admin ao cluster vem de
+`bootstrap_cluster_creator_admin_permissions`, concedido pelo próprio EKS à role que criou o cluster.
 
 ## CI/CD
 
