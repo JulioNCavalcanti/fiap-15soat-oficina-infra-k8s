@@ -34,3 +34,8 @@ output "private_subnet_cidrs" {
   description = "CIDRs das subnets privadas — origem liberada no security group do RDS"
   value       = module.vpc.private_subnets_cidr_blocks
 }
+
+output "filas_saga" {
+  description = "URLs das filas da Saga, por nome logico"
+  value       = { for nome, fila in aws_sqs_queue.saga : nome => fila.url }
+}
