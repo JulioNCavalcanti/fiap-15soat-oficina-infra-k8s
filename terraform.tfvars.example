@@ -4,3 +4,10 @@
 
 aws_region   = "us-east-1"
 project_name = "oficina"
+
+# Conta nova com cota de 1 vCPU on-demand (15/11/2026): um node de 1 vCPU, sem nri-bundle.
+# Graviton com 1 vCPU: r6g.medium (8 GB) ou m6g.medium (4 GB). Voltar ao padrao quando a cota subir.
+# node_instance_type = "r6g.medium"
+# node_desired_size  = 1
+# node_min_size      = 1
+# node_max_size      = 1

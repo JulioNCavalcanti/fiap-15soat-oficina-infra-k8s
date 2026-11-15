@@ -22,10 +22,20 @@ resource "aws_eks_cluster" "this" {
 }
 
 # vpc-cni e kube-proxy antes dos nodes: sem CNI os nodes nao ficam Ready.
+# Prefix delegation: cada ENI recebe blocos /28 em vez de IPs avulsos. Sem isso, uma instancia
+# medium aceita so 8 pods, contando os do sistema; com ele, o node group calcula ate 110.
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "vpc-cni"
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  configuration_values = jsonencode({
+    env = {
+      ENABLE_PREFIX_DELEGATION = "true"
+      WARM_PREFIX_TARGET       = "1"
+    }
+  })
 }
 
 resource "aws_eks_addon" "kube_proxy" {
