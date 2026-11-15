@@ -1,18 +1,9 @@
-data "aws_caller_identity" "current" {}
-
-# ARN montado a partir da conta corrente: cada sessao do AWS Academy pode ser uma conta diferente,
-# e iam:GetRole e bloqueado, entao nao da para usar data "aws_iam_role".
-locals {
-  lab_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
-}
-
-# Recursos nativos em vez do modulo terraform-aws-modules/eks: o modulo le sempre
-# data "aws_iam_session_context", que chama iam:GetRole na role voclabs — bloqueado
-# por deny explicito no AWS Academy, sem variavel para desligar.
+# Recursos nativos em vez do modulo terraform-aws-modules/eks (heranca da Fase 3, no AWS Academy).
+# As roles do cluster, dos nodes e de cada servico ficam em iam.tf.
 resource "aws_eks_cluster" "this" {
   name     = "${var.project_name}-eks"
   version  = var.eks_cluster_version
-  role_arn = local.lab_role_arn
+  role_arn = aws_iam_role.eks_cluster.arn
 
   vpc_config {
     subnet_ids              = module.vpc.private_subnets
@@ -20,12 +11,14 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
   }
 
-  # O proprio EKS concede admin a quem criou o cluster (a role voclabs), sem precisar
-  # de iam:GetRole. E essa permissao que deixa o kubectl do pipeline da aplicacao operar.
+  # O proprio EKS concede admin a quem criou o cluster: e essa permissao que deixa o kubectl
+  # de quem rodou o apply operar o cluster.
   access_config {
     authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
   }
+
+  depends_on = [aws_iam_role_policy_attachment.eks_cluster]
 }
 
 # vpc-cni e kube-proxy antes dos nodes: sem CNI os nodes nao ficam Ready.
@@ -47,11 +40,11 @@ resource "aws_eks_addon" "kube_proxy" {
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "default"
-  node_role_arn   = local.lab_role_arn
+  node_role_arn   = aws_iam_role.eks_node.arn
   subnet_ids      = module.vpc.private_subnets
 
   # A partir do Kubernetes 1.33 o EKS nao publica mais AMI Amazon Linux 2.
-  ami_type       = "AL2023_x86_64_STANDARD"
+  ami_type       = var.node_ami_type
   instance_types = [var.node_instance_type]
 
   scaling_config {
@@ -67,6 +60,7 @@ resource "aws_eks_node_group" "default" {
   depends_on = [
     aws_eks_addon.vpc_cni,
     aws_eks_addon.kube_proxy,
+    aws_iam_role_policy_attachment.eks_node,
   ]
 }
 
@@ -82,6 +76,15 @@ resource "aws_eks_addon" "coredns" {
 resource "aws_eks_addon" "metrics_server" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "metrics-server"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  depends_on = [aws_eks_node_group.default]
+}
+
+# Agente que entrega aos pods as credenciais das roles de servico (iam.tf).
+resource "aws_eks_addon" "pod_identity_agent" {
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "eks-pod-identity-agent"
   resolve_conflicts_on_create = "OVERWRITE"
 
   depends_on = [aws_eks_node_group.default]
