@@ -31,10 +31,18 @@ variable "eks_cluster_version" {
   default     = "1.35"
 }
 
+# ARM (Graviton): as imagens sao construidas nativamente nos Macs com Apple Silicon, sem emulacao,
+# e a instancia custa menos que a t3.medium. Trocar para x86 exige mudar node_ami_type junto.
 variable "node_instance_type" {
   description = "Tipo de instancia EC2 dos nodes do EKS"
   type        = string
-  default     = "t3.medium"
+  default     = "t4g.medium"
+}
+
+variable "node_ami_type" {
+  description = "AMI dos nodes; precisa casar com a arquitetura de node_instance_type"
+  type        = string
+  default     = "AL2023_ARM_64_STANDARD"
 }
 
 variable "node_desired_size" {

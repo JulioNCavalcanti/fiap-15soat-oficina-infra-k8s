@@ -7,9 +7,14 @@ output "eks_cluster_endpoint" {
   value = aws_eks_cluster.this.endpoint
 }
 
-output "ecr_repository_url" {
-  description = "URI a usar no campo `image:` do deployment e no push do CI/CD da aplicacao"
-  value       = aws_ecr_repository.oficina_api.repository_url
+output "ecr_repositorios" {
+  description = "URI de cada repositorio de imagem, por servico — campo `image:` dos manifestos"
+  value       = { for nome, repo in aws_ecr_repository.servico : nome => repo.repository_url }
+}
+
+output "roles_servicos" {
+  description = "Role IAM de cada servico, entregue ao pod pelo EKS Pod Identity (namespace oficina, ServiceAccount oficina-<servico>)"
+  value       = { for nome, role in aws_iam_role.servico : nome => role.arn }
 }
 
 output "configure_kubectl_command" {

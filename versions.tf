@@ -12,7 +12,7 @@ terraform {
   # e tentaria recriar a infraestrutura inteira.
   # O bucket e a tabela de lock sao criados uma unica vez, fora do Terraform.
   backend "s3" {
-    bucket         = "fiap-15soat-oficina-tfstate"
+    bucket         = "fiap-15soat-oficina-fase4-tfstate"
     key            = "infra-k8s/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "fiap-15soat-oficina-tflock"

@@ -1,14 +1,23 @@
-resource "aws_ecr_repository" "oficina_api" {
-  name                 = "${var.project_name}-api"
+# Um repositorio por servico. force_delete: o ambiente e destruido depois de cada uso, e o
+# destroy falharia com imagens dentro do repositorio.
+locals {
+  repositorios = toset(["os", "execucao", "billing"])
+}
+
+resource "aws_ecr_repository" "servico" {
+  for_each             = local.repositorios
+  name                 = "${var.project_name}-${each.key}"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
   }
 }
 
-resource "aws_ecr_lifecycle_policy" "oficina_api" {
-  repository = aws_ecr_repository.oficina_api.name
+resource "aws_ecr_lifecycle_policy" "servico" {
+  for_each   = local.repositorios
+  repository = aws_ecr_repository.servico[each.key].name
 
   policy = jsonencode({
     rules = [
